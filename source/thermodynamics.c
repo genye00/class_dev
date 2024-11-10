@@ -393,24 +393,33 @@ int thermodynamics_init(
   }
 
   /** - assign reionisation parameters */
-  class_call(thermodynamics_set_parameters_reionization(ppr,
+  class_call_except(thermodynamics_set_parameters_reionization(ppr,
                                                         pba,
                                                         pth,
                                                         ptw->ptrp),
              pth->error_message,
-             pth->error_message);
+             pth->error_message,
+             thermodynamics_workspace_free(pth,ptw);
+             free(pvecback);
+             thermodynamics_free(pth););
 
   /** - solve recombination and reionization and store values of \f$ z, x_e, d \kappa / d \tau, T_b, c_b^2 \f$  */
-  class_call(thermodynamics_solve(ppr,pba,pth,ptw,pvecback),
+  class_call_except(thermodynamics_solve(ppr,pba,pth,ptw,pvecback),
              pth->error_message,
-             pth->error_message);
+             pth->error_message,
+             thermodynamics_workspace_free(pth,ptw);
+             free(pvecback);
+             thermodynamics_free(pth););
 
   /** - the differential equation system is now completely solved  */
 
   /** - fill missing columns (quantities not computed during the differential evolution but related) */
-  class_call(thermodynamics_calculate_remaining_quantities(ppr,pba,pth,pvecback),
+  class_call_except(thermodynamics_calculate_remaining_quantities(ppr,pba,pth,pvecback),
              pth->error_message,
-             pth->error_message);
+             pth->error_message,
+             thermodynamics_workspace_free(pth,ptw);
+             free(pvecback);
+             thermodynamics_free(pth););
 
   /** - write information on thermal history in standard output */
   if (pth->thermodynamics_verbose > 0) {
@@ -1648,19 +1657,22 @@ int thermodynamics_solve(
         module */
     if ((pth->reio_z_or_tau == reio_tau) && (index_interval == ptw->ptdw->index_ap_reio)) {
 
-      class_call(thermodynamics_reionization_evolve_with_tau(&tpaw,
+      class_call_except(thermodynamics_reionization_evolve_with_tau(&tpaw,
                                                              interval_limit[index_interval],
                                                              interval_limit[index_interval+1],
                                                              mz_output,
                                                              pth->tt_size),
                  pth->error_message,
-                 pth->error_message);
+                 pth->error_message,
+                 thermodynamics_vector_free(ptw->ptdw->ptv);
+                 free(interval_limit);
+                 free(mz_output););
     }
 
     /** --> (c2) otherwise, just integrate quantities over the current interval. */
     else{
 
-      class_call(generic_evolver(thermodynamics_derivs,
+      class_call_except(generic_evolver(thermodynamics_derivs,
                                  interval_limit[index_interval],
                                  interval_limit[index_interval+1],
                                  ptw->ptdw->ptv->y,
@@ -1677,7 +1689,10 @@ int thermodynamics_solve(
                                  NULL, // print variables
                                  pth->error_message),
                  pth->error_message,
-                 pth->error_message);
+                 pth->error_message,
+                 thermodynamics_vector_free(ptw->ptdw->ptv);
+                 free(interval_limit);
+                 free(mz_output););
     }
 
   }
@@ -1685,12 +1700,15 @@ int thermodynamics_solve(
   /** - Compute reionization optical depth, if not supplied as input parameter */
   if (pth->reio_z_or_tau == reio_z) {
 
-    class_call(thermodynamics_reionization_get_tau(ppr,
+    class_call_except(thermodynamics_reionization_get_tau(ppr,
                                                    pba,
                                                    pth,
                                                    ptw),
                pth->error_message,
-               pth->error_message);
+               pth->error_message,
+               if (ptw->ptdw->ap_size != 0) {thermodynamics_vector_free(ptw->ptdw->ptv);}
+               free(interval_limit);
+               free(mz_output););
 
     pth->tau_reio=ptw->reionization_optical_depth;
 
@@ -2262,8 +2280,10 @@ int thermodynamics_reionization_evolve_with_tau(
   /** - Evolve quantities through reionization assuming upper value of z_reio */
 
   z_sup = ppr->reionization_z_start_max-ppr->reionization_start_factor*pth->reionization_width;
-  class_test(z_sup < 0.,
+  class_test_except(z_sup < 0.,
              pth->error_message,
+             thermodynamics_vector_free(ptv);
+             ptw->ptdw->ptv = ptvs;,
              "parameters are such that reionization cannot take place before today while starting after z_start_max; need to increase z_start_max");
 
   /* maximum possible reionization redshift */
@@ -2286,7 +2306,7 @@ int thermodynamics_reionization_evolve_with_tau(
   last_index_back_mz_ini = ptpaw->ptw->last_index_back;
 
   /* Calculate a first ionization history at upper limit */
-  class_call(generic_evolver(thermodynamics_derivs,
+  class_call_except(generic_evolver(thermodynamics_derivs,
                              mz_ini,
                              mz_end,
                              ptv->y,
@@ -2303,20 +2323,26 @@ int thermodynamics_reionization_evolve_with_tau(
                              NULL, // print variables
                              pth->error_message),
              pth->error_message,
-             pth->error_message);
+             pth->error_message,
+             thermodynamics_vector_free(ptv);
+             ptw->ptdw->ptv = ptvs;);
 
   /* infer corresponding tau_reio */
-  class_call(thermodynamics_reionization_get_tau(ppr,
+  class_call_except(thermodynamics_reionization_get_tau(ppr,
                                                  pba,
                                                  pth,
                                                  ptw),
              pth->error_message,
-             pth->error_message);
+             pth->error_message,
+             thermodynamics_vector_free(ptv);
+             ptw->ptdw->ptv = ptvs;);
 
   tau_sup=ptw->reionization_optical_depth;
 
-  class_test(tau_sup < pth->tau_reio,
+  class_test_except(tau_sup < pth->tau_reio,
              pth->error_message,
+             thermodynamics_vector_free(ptv);
+             ptw->ptdw->ptv = ptvs;,
              "parameters are such that reionization cannot start after z_start_max");
 
   /** - Restore initial conditions */
@@ -2351,7 +2377,7 @@ int thermodynamics_reionization_evolve_with_tau(
   ptpaw->ptw->last_index_back = last_index_back_mz_ini;
 
   /* Calculate a second ionization history at lower limit */
-  class_call(generic_evolver(thermodynamics_derivs,
+  class_call_except(generic_evolver(thermodynamics_derivs,
                              mz_ini,
                              mz_end,
                              ptv->y,
@@ -2368,20 +2394,26 @@ int thermodynamics_reionization_evolve_with_tau(
                              NULL, // print variables
                              pth->error_message),
              pth->error_message,
-             pth->error_message);
+             pth->error_message,
+             thermodynamics_vector_free(ptv);
+             ptw->ptdw->ptv = ptvs;);
 
   /* infer corresponding tau_reio */
-  class_call(thermodynamics_reionization_get_tau(ppr,
+  class_call_except(thermodynamics_reionization_get_tau(ppr,
                                                  pba,
                                                  pth,
                                                  ptw),
              pth->error_message,
-             pth->error_message);
+             pth->error_message,
+             thermodynamics_vector_free(ptv);
+             ptw->ptdw->ptv = ptvs;);
 
   tau_inf=ptw->reionization_optical_depth;
 
-  class_test(tau_inf > pth->tau_reio,
+  class_test_except(tau_inf > pth->tau_reio,
              pth->error_message,
+             thermodynamics_vector_free(ptv);
+             ptw->ptdw->ptv = ptvs;,
              "CLASS cannot reach the low value of tau_reio that was selected, even when setting z_reio as low as 0.\nThis means that some additional physical component is requiring some minimal tau_reio_min = %.10e.\nThis is usually caused by strong energy injections or other modifications of the x_e(z) behaviour.",tau_inf);
 
   /** - Restore initial conditions */
@@ -2417,15 +2449,17 @@ int thermodynamics_reionization_evolve_with_tau(
       break;
     }
 
-    class_test(ptw->ptrp->reionization_parameters[ptw->ptrp->index_re_reio_start] > ppr->reionization_z_start_max,
+    class_test_except(ptw->ptrp->reionization_parameters[ptw->ptrp->index_re_reio_start] > ppr->reionization_z_start_max,
                pth->error_message,
+               thermodynamics_vector_free(ptv);
+               ptw->ptdw->ptv = ptvs;,
                "starting redshift for reionization > reionization_z_start_max = %e",ppr->reionization_z_start_max);
 
     /* reset ptaw->ptw->last_index_back to match the redshift z = -mz_inbi */
     ptpaw->ptw->last_index_back = last_index_back_mz_ini;
 
     /* Compute a new ionization history */
-    class_call(generic_evolver(thermodynamics_derivs,
+    class_call_except(generic_evolver(thermodynamics_derivs,
                                mz_ini,
                                mz_end,
                                ptv->y,
@@ -2442,15 +2476,19 @@ int thermodynamics_reionization_evolve_with_tau(
                                NULL, // print variables
                                pth->error_message),
                pth->error_message,
-               pth->error_message);
+               pth->error_message,
+               thermodynamics_vector_free(ptv);
+               ptw->ptdw->ptv = ptvs;);
 
     /* infer corresponding tau_reio */
-    class_call(thermodynamics_reionization_get_tau(ppr,
+    class_call_except(thermodynamics_reionization_get_tau(ppr,
                                                    pba,
                                                    pth,
                                                    ptw),
                pth->error_message,
-               pth->error_message);
+               pth->error_message,
+               thermodynamics_vector_free(ptv);
+               ptw->ptdw->ptv = ptvs;);
 
     tau_mid=ptw->reionization_optical_depth;
 
@@ -2473,8 +2511,10 @@ int thermodynamics_reionization_evolve_with_tau(
 
     /* counter to avoid infinite loop */
     counter++;
-    class_test(counter > _MAX_IT_,
+    class_test_except(counter > _MAX_IT_,
                pth->error_message,
+               thermodynamics_vector_free(ptv);
+               ptw->ptdw->ptv = ptvs;,
                "while searching for reionization_optical_depth, maximum number of iterations exceeded");
   }
 
