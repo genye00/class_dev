@@ -3285,9 +3285,6 @@ int input_read_parameters_species(struct file_content * pfc,
       class_read_double("w0_fld",pba->w0_fld);
       class_read_double("wa_fld",pba->wa_fld);
       class_read_double("cs2_fld",pba->cs2_fld);
-      class_test(pba->w0_fld+pba->wa_fld>0.,
-                 errmsg,
-                 "Temporary enforce w0+wa<0 to avoid memory issues.");
     }
     if (pba->fluid_equation_of_state == EDE) {
       /** 8.a.2.3) Equation of state of the fluid in 'EDE' case */

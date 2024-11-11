@@ -1779,6 +1779,11 @@ int background_checks(
 
     class_call(background_w_fld(pba,0.,&w_fld,&dw_over_da,&integral_fld), pba->error_message, pba->error_message);
 
+    class_test(w_fld >= 0.,
+               pba->error_message,
+               "Enforcing w(a--->0)<0 in background module as a temporary memory fix\n",
+               w_fld);
+
     class_test(w_fld >= 1./3.,
                pba->error_message,
                "Your choice for w(a--->0)=%g is suspicious, since it is bigger than 1/3 there cannot be radiation domination at early times\n",
