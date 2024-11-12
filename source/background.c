@@ -832,19 +832,22 @@ int background_init(
              pba->error_message);
 
   /** - integrate the background over log(a), allocate and fill the background table */
-  class_call(background_solve(ppr,pba),
+  class_call_except(background_solve(ppr,pba),
              pba->error_message,
-             pba->error_message);
+             pba->error_message,
+             background_free_noinput(pba););
 
   /** - find and store a few derived parameters at radiation-matter equality */
-  class_call(background_find_equality(ppr,pba),
+  class_call_except(background_find_equality(ppr,pba),
              pba->error_message,
-             pba->error_message);
+             pba->error_message,
+             background_free_noinput(pba););
 
   /* - write a summary of the budget of the universe */
-  class_call(background_output_budget(pba),
+  class_call_except(background_output_budget(pba),
              pba->error_message,
-             pba->error_message);
+             pba->error_message,
+             background_free_noinput(pba););
 
   pba->is_allocated = _TRUE_;
 
@@ -1918,13 +1921,6 @@ int background_solve(
   /** - allocate vector of quantities to be integrated */
   class_alloc(pvecback_integration,pba->bi_size*sizeof(double),pba->error_message);
 
-  /** - impose initial conditions with background_initial_conditions() */
-  class_call_except(background_initial_conditions(ppr,pba,pvecback,pvecback_integration,&(loga_ini)),
-             pba->error_message,
-             pba->error_message,
-             free(pvecback);
-             free(pvecback_integration););
-
   /** - Determine output vector */
   loga_final = 0.; // with our conventions, loga is in fact log(a/a_0); we integrate until today, when log(a/a_0) = 0
   pba->bt_size = ppr->background_Nloga;
@@ -1941,6 +1937,14 @@ int background_solve(
   class_alloc(pba->d2background_dloga2_table,pba->bt_size * pba->bg_size * sizeof(double),pba->error_message);
 
   class_alloc(used_in_output, pba->bt_size*sizeof(int), pba->error_message);
+
+  /** - impose initial conditions with background_initial_conditions() */
+  class_call_except(background_initial_conditions(ppr,pba,pvecback,pvecback_integration,&(loga_ini)),
+             pba->error_message,
+             pba->error_message,
+             free(pvecback);
+             free(pvecback_integration);
+             free(used_in_output););
 
   /** - define values of loga at which results will be stored */
   for (index_loga=0; index_loga<pba->bt_size; index_loga++) {
@@ -1987,8 +1991,7 @@ int background_solve(
              pba->error_message,
              free(pvecback);
              free(pvecback_integration);
-             free(used_in_output);
-             background_free_noinput(pba););
+             free(used_in_output););
 
   /** - recover some quantities today */
   /* -> age in Gyears */

@@ -382,6 +382,9 @@ cdef class Class:
         # with the error message from the faulty module of CLASS.
         if "background" in level:
             if background_init(&(self.pr), &(self.ba)) == _FAILURE_:
+                background_free_input(&self.ba)
+                thermodynamics_free_input(&self.th)
+                perturbations_free_input(&self.pt)
                 self.struct_cleanup()
                 raise CosmoComputationError(self.ba.error_message)
             self.ncp.add("background")
@@ -389,6 +392,8 @@ cdef class Class:
         if "thermodynamics" in level:
             if thermodynamics_init(&(self.pr), &(self.ba),
                                    &(self.th)) == _FAILURE_:
+                thermodynamics_free_input(&self.th)
+                perturbations_free_input(&self.pt)
                 self.struct_cleanup()
                 raise CosmoComputationError(self.th.error_message)
             self.ncp.add("thermodynamics")
@@ -396,6 +401,7 @@ cdef class Class:
         if "perturb" in level:
             if perturbations_init(&(self.pr), &(self.ba),
                             &(self.th), &(self.pt)) == _FAILURE_:
+                perturbations_free_input(&self.pt)
                 self.struct_cleanup()
                 raise CosmoComputationError(self.pt.error_message)
             self.ncp.add("perturb")
