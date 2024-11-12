@@ -931,7 +931,7 @@ int perturbations_init(
                      ppt->error_message,
                      ppt->error_message);
 
-          class_call_try(perturbations_solve(ppr,
+          class_call_except(perturbations_solve(ppr,
                                          pba,
                                          pth,
                                          ppt,
@@ -958,10 +958,10 @@ int perturbations_init(
 
   for (std::future<int>& future : future_output) { 
     if(future.get()!=_SUCCESS_) {
-      perturbations_free(ppt);
-      future_output.clear();
-      return _FAILURE_;}   
-  }                                            
+      ppt->is_allocated = _TRUE_;
+      return _FAILURE_;
+    }   
+  }                    
   future_output.clear();
   // class_finish_parallel();
 
