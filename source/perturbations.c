@@ -931,7 +931,7 @@ int perturbations_init(
                      ppt->error_message,
                      ppt->error_message);
 
-          class_call(perturbations_solve(ppr,
+          class_call_try(perturbations_solve(ppr,
                                          pba,
                                          pth,
                                          ppt,
@@ -940,7 +940,8 @@ int perturbations_init(
                                          index_k,
                                          &pw),
                      ppt->error_message,
-                     ppt->error_message);
+                     ppt->error_message,
+                     perturbations_workspace_free(ppt,index_md,&pw););
 
           class_call(perturbations_workspace_free(ppt,index_md,&pw),
                      ppt->error_message,
@@ -955,7 +956,14 @@ int perturbations_init(
 
   } /* end loop over modes */
 
-  class_finish_parallel();
+  for (std::future<int>& future : future_output) { 
+    if(future.get()!=_SUCCESS_) {
+      perturbations_free(ppt);
+      future_output.clear();
+      return _FAILURE_;}   
+  }                                            
+  future_output.clear();
+  // class_finish_parallel();
 
 
   /** - spline the source array with respect to the time variable */
@@ -3224,7 +3232,7 @@ int perturbations_solve(
       generic_evolver = evolver_ndf15;
     }
 
-    class_call(generic_evolver(perturbations_derivs,
+    class_call_except(generic_evolver(perturbations_derivs,
                                interval_limit[index_interval],
                                interval_limit[index_interval+1],
                                ppw->pv->y,
@@ -3241,7 +3249,11 @@ int perturbations_solve(
                                perhaps_print_variables,
                                ppt->error_message),
                ppt->error_message,
-               ppt->error_message);
+               ppt->error_message,
+               perturbations_vector_free(ppw->pv);
+               for (index_interval=0; index_interval<interval_number; index_interval++) free(interval_approx[index_interval]);
+               free(interval_approx);
+               free(interval_limit););
 
   }
 
